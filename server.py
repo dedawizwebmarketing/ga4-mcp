@@ -531,7 +531,7 @@ if __name__ == "__main__":
         @app.get("/.well-known/oauth-protected-resource")
         @app.get("/.well-known/oauth-protected-resource/mcp")
         async def oauth_protected_resource(request: Request):
-            base = str(request.base_url).rstrip("/")
+            base = "https://web-production-4bc4f.up.railway.app"
             return JSONResponse({
                 "resource": f"{base}/mcp",
                 "authorization_servers": [],
@@ -541,7 +541,7 @@ if __name__ == "__main__":
 
         @app.get("/.well-known/oauth-authorization-server")
         async def oauth_authorization_server(request: Request):
-            base = str(request.base_url).rstrip("/")
+            base = "https://web-production-4bc4f.up.railway.app"
             return JSONResponse({
                 "issuer": base,
                 "authorization_endpoint": f"{base}/oauth/authorize",
