@@ -507,7 +507,6 @@ if __name__ == "__main__":
     if TRANSPORT == "stdio":
         mcp.run()
     else:
-        app = mcp.get_asgi_app()
-        print(f"🚀 GA4 MCP Server avviato su http://0.0.0.0:{PORT}/mcp", file=sys.stderr)
+        print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        uvicorn.run(app, host="0.0.0.0", port=PORT)
+        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
