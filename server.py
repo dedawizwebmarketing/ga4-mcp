@@ -509,4 +509,5 @@ if __name__ == "__main__":
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
+        app = mcp.streamable_http_app()
+        uvicorn.run(app, host="0.0.0.0", port=PORT)
