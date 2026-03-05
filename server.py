@@ -518,14 +518,11 @@ if __name__ == "__main__":
                     return JSONResponse({"error": "Unauthorized"}, status_code=401)
             return await call_next(request)
 
+if __name__ == "__main__":
+    import uvicorn
     if TRANSPORT == "stdio":
         mcp.run()
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        app = mcp.streamable_http_app()
-        from starlette.applications import Starlette
-        from starlette.routing import Mount
-        wrapped = Starlette(routes=[Mount("/", app=app)])
-        wrapped.add_middleware(APIKeyMiddleware)
-        uvicorn.run(wrapped, host="0.0.0.0", port=PORT)
+        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
