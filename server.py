@@ -504,10 +504,28 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 
 if __name__ == "__main__":
     import uvicorn
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    API_KEY = os.environ.get("MCP_API_KEY", "")
+
+    class APIKeyMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if API_KEY:
+                auth = request.headers.get("Authorization", "")
+                key = request.query_params.get("api_key", "")
+                if auth != f"Bearer {API_KEY}" and key != API_KEY:
+                    return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            return await call_next(request)
+
     if TRANSPORT == "stdio":
         mcp.run()
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
         app = mcp.streamable_http_app()
-        uvicorn.run(app, host="0.0.0.0", port=PORT)
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+        wrapped = Starlette(routes=[Mount("/", app=app)])
+        wrapped.add_middleware(APIKeyMiddleware)
+        uvicorn.run(wrapped, host="0.0.0.0", port=PORT)
