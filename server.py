@@ -520,19 +520,19 @@ if __name__ == "__main__":
         mcp_app = mcp.streamable_http_app()
         app.mount("/mcp/", mcp_app)
 
-@app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
-async def mcp_no_slash(request: Request):
-    import httpx
-    body = await request.body()
-    async with httpx.AsyncClient(app=mcp_app, base_url="http://testserver") as client:
-        r = await client.request(
-            method=request.method,
-            url=f"/mcp/{request.url.query and '?' + str(request.url.query) or ''}",
-            headers=dict(request.headers),
-            content=body,
-        )
-    from starlette.responses import Response
-    return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
+        @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
+        async def mcp_no_slash(request: Request):
+            import httpx
+            body = await request.body()
+            async with httpx.AsyncClient(app=mcp_app, base_url="http://testserver") as client:
+                r = await client.request(
+                    method=request.method,
+                    url=f"/mcp/{request.url.query and '?' + str(request.url.query) or ''}",
+                    headers=dict(request.headers),
+                    content=body,
+                )
+            from starlette.responses import Response
+            return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
 
         @app.get("/.well-known/oauth-protected-resource")
         @app.get("/.well-known/oauth-protected-resource/mcp")
