@@ -503,9 +503,11 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import uvicorn
     if TRANSPORT == "stdio":
         mcp.run()
     else:
+        app = mcp.get_asgi_app()
         print(f"🚀 GA4 MCP Server avviato su http://0.0.0.0:{PORT}/mcp", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        mcp.run(transport="streamable_http", port=PORT)
+        uvicorn.run(app, host="0.0.0.0", port=PORT)
