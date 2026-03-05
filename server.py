@@ -512,5 +512,11 @@ if __name__ == "__main__":
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
         app = FastAPI()
-        app.mount("/mcp", mcp.streamable_http_app())
+        mcp_app = mcp.streamable_http_app()
+        app.mount("/mcp", mcp_app)
+
+        @app.get("/")
+        async def root():
+            return {"status": "ok", "server": "ga4_mcp"}
+
         uvicorn.run(app, host="0.0.0.0", port=PORT)
