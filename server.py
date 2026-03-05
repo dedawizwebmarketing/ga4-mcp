@@ -508,4 +508,4 @@ if __name__ == "__main__":
     else:
         print(f"🚀 GA4 MCP Server avviato su http://0.0.0.0:{PORT}/mcp", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        mcp.run(transport="streamable_http", host="0.0.0.0", port=PORT)
+        mcp.run(transport="streamable_http", port=PORT)
