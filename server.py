@@ -518,18 +518,39 @@ if __name__ == "__main__":
         mcp_app = mcp.streamable_http_app()
         app.mount("/mcp/", mcp_app)
 
-        @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
+     @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
         async def mcp_no_slash(request: Request):
-            body = await request.body()
-            async with httpx.AsyncClient(app=mcp_app, base_url="http://testserver") as client:
-                r = await client.request(
-                    method=request.method,
-                    url="/mcp/",
-                    headers=dict(request.headers),
-                    content=body,
-                )
-            return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
+            scope = dict(request.scope)
+            scope["path"] = "/mcp/"
+            scope["raw_path"] = b"/mcp/"
+            
+            response_started = False
+            response_body = b""
+            response_status = 200
+            response_headers = []
 
+            async def receive():
+                return {"type": "http.request", "body": await request.body(), "more_body": False}
+
+            async def send(message):
+                nonlocal response_started, response_body, response_status, response_headers
+                if message["type"] == "http.response.start":
+                    if not response_started:
+                        response_started = True
+                        response_status = message["status"]
+                        response_headers = message.get("headers", [])
+                elif message["type"] == "http.response.body":
+                    response_body += message.get("body", b"")
+
+            await mcp_app(scope, receive, send)
+            from starlette.responses import Response
+            return Response(
+                content=response_body,
+                status_code=response_status,
+                headers=dict(response_headers)
+            )
+
+        
         @app.get("/.well-known/oauth-protected-resource")
         @app.get("/.well-known/oauth-protected-resource/mcp")
         async def oauth_protected_resource(request: Request):
