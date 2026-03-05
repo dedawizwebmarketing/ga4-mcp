@@ -504,25 +504,38 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 
 if __name__ == "__main__":
     import uvicorn
-    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.applications import Starlette
+    from starlette.requests import Request
     from starlette.responses import JSONResponse
+    from starlette.routing import Mount, Route
 
-    API_KEY = os.environ.get("MCP_API_KEY", "")
+    async def oauth_protected_resource(request: Request):
+        base_url = str(request.base_url).rstrip("/")
+        return JSONResponse({
+            "resource": base_url,
+            "authorization_servers": [],
+            "bearer_methods_supported": [],
+            "scopes_supported": []
+        })
 
-    class APIKeyMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request, call_next):
-            if API_KEY:
-                auth = request.headers.get("Authorization", "")
-                key = request.query_params.get("api_key", "")
-                if auth != f"Bearer {API_KEY}" and key != API_KEY:
-                    return JSONResponse({"error": "Unauthorized"}, status_code=401)
-            return await call_next(request)
+    async def oauth_metadata(request: Request):
+        return JSONResponse({
+            "issuer": str(request.base_url).rstrip("/"),
+            "authorization_endpoint": "",
+            "token_endpoint": "",
+            "response_types_supported": []
+        })
 
-if __name__ == "__main__":
-    import uvicorn
     if TRANSPORT == "stdio":
         mcp.run()
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
+        routes = [
+            Route("/.well-known/oauth-protected-resource", oauth_protected_resource),
+            Route("/.well-known/oauth-protected-resource/mcp", oauth_protected_resource),
+            Route("/.well-known/oauth-authorization-server", oauth_metadata),
+            Mount("/", app=mcp.streamable_http_app()),
+        ]
+        app = Starlette(routes=routes)
+        uvicorn.run(app, host="0.0.0.0", port=PORT)
