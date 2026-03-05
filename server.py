@@ -39,7 +39,7 @@ SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 PORT   = int(os.environ.get("PORT", "8000"))
 TRANSPORT = os.environ.get("MCP_TRANSPORT", "streamable_http")  # o "stdio" per locale
 
-mcp = FastMCP("ga4_mcp")
+mcp = FastMCP("ga4_mcp", stateless_http=True)
 
 # ─── Properties Map ───────────────────────────────────────────────────────────
 
@@ -504,38 +504,13 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 
 if __name__ == "__main__":
     import uvicorn
-    from starlette.applications import Starlette
-    from starlette.requests import Request
-    from starlette.responses import JSONResponse
-    from starlette.routing import Mount, Route
-
-    async def oauth_protected_resource(request: Request):
-        base_url = str(request.base_url).rstrip("/")
-        return JSONResponse({
-            "resource": base_url,
-            "authorization_servers": [],
-            "bearer_methods_supported": [],
-            "scopes_supported": []
-        })
-
-    async def oauth_metadata(request: Request):
-        return JSONResponse({
-            "issuer": str(request.base_url).rstrip("/"),
-            "authorization_endpoint": "",
-            "token_endpoint": "",
-            "response_types_supported": []
-        })
+    from fastapi import FastAPI
 
     if TRANSPORT == "stdio":
         mcp.run()
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
-        routes = [
-            Route("/.well-known/oauth-protected-resource", oauth_protected_resource),
-            Route("/.well-known/oauth-protected-resource/mcp", oauth_protected_resource),
-            Route("/.well-known/oauth-authorization-server", oauth_metadata),
-            Mount("/", app=mcp.streamable_http_app()),
-        ]
-        app = Starlette(routes=routes)
+        app = FastAPI()
+        app.mount("/mcp", mcp.streamable_http_app())
         uvicorn.run(app, host="0.0.0.0", port=PORT)
