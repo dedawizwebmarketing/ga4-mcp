@@ -505,41 +505,36 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 if __name__ == "__main__":
     import uvicorn
     from fastapi import FastAPI
+    import httpx
     from starlette.requests import Request
-    from starlette.responses import JSONResponse, RedirectResponse
+    from starlette.responses import JSONResponse, RedirectResponse, Response
 
     if TRANSPORT == "stdio":
         mcp.run()
     else:
-        print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
-        print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
+        print(f"GA4 MCP Server su porta {PORT}", file=sys.stderr)
 
         app = FastAPI()
-
-        # Mount MCP senza slash finale per evitare 307 redirect
         mcp_app = mcp.streamable_http_app()
         app.mount("/mcp/", mcp_app)
 
         @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
         async def mcp_no_slash(request: Request):
-            import httpx
             body = await request.body()
             async with httpx.AsyncClient(app=mcp_app, base_url="http://testserver") as client:
                 r = await client.request(
                     method=request.method,
-                    url=f"/mcp/{request.url.query and '?' + str(request.url.query) or ''}",
+                    url="/mcp/",
                     headers=dict(request.headers),
                     content=body,
                 )
-            from starlette.responses import Response
             return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
 
         @app.get("/.well-known/oauth-protected-resource")
         @app.get("/.well-known/oauth-protected-resource/mcp")
         async def oauth_protected_resource(request: Request):
-            base = "https://web-production-4bc4f.up.railway.app"
             return JSONResponse({
-                "resource": f"{base}/mcp",
+                "resource": "https://web-production-4bc4f.up.railway.app/mcp",
                 "authorization_servers": [],
                 "bearer_methods_supported": [],
                 "scopes_supported": []
@@ -574,9 +569,8 @@ if __name__ == "__main__":
         async def oauth_authorize(request: Request):
             params = dict(request.query_params)
             redirect_uri = params.get("redirect_uri", "")
-            code = "ga4-mcp-bypass-code"
             state = params.get("state", "")
-            return RedirectResponse(f"{redirect_uri}?code={code}&state={state}")
+            return RedirectResponse(f"{redirect_uri}?code=ga4-mcp-code&state={state}")
 
         @app.post("/oauth/token")
         async def oauth_token(request: Request):
