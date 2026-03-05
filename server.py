@@ -505,15 +505,80 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 if __name__ == "__main__":
     import uvicorn
     from fastapi import FastAPI
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse, RedirectResponse
 
     if TRANSPORT == "stdio":
         mcp.run()
     else:
         print(f"🚀 GA4 MCP Server avviato su porta {PORT}", file=sys.stderr)
         print(f"   Property configurate: {list(PROPERTIES.keys())}", file=sys.stderr)
+
         app = FastAPI()
+
+        # Mount MCP senza slash finale per evitare 307 redirect
         mcp_app = mcp.streamable_http_app()
-        app.mount("/mcp", mcp_app)
+        app.mount("/mcp/", mcp_app)
+
+        @app.post("/mcp")
+        async def mcp_no_slash(request: Request):
+            # Proxy diretto senza redirect
+            from starlette.responses import Response
+            scope = request.scope.copy()
+            scope["path"] = "/mcp/"
+            return await mcp_app(scope, request._receive, request._send)
+
+        @app.get("/.well-known/oauth-protected-resource")
+        @app.get("/.well-known/oauth-protected-resource/mcp")
+        async def oauth_protected_resource(request: Request):
+            base = str(request.base_url).rstrip("/")
+            return JSONResponse({
+                "resource": f"{base}/mcp",
+                "authorization_servers": [],
+                "bearer_methods_supported": [],
+                "scopes_supported": []
+            })
+
+        @app.get("/.well-known/oauth-authorization-server")
+        async def oauth_authorization_server(request: Request):
+            base = str(request.base_url).rstrip("/")
+            return JSONResponse({
+                "issuer": base,
+                "authorization_endpoint": f"{base}/oauth/authorize",
+                "token_endpoint": f"{base}/oauth/token",
+                "registration_endpoint": f"{base}/register",
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code"],
+                "code_challenge_methods_supported": ["S256"]
+            })
+
+        @app.post("/register")
+        async def dynamic_client_registration(request: Request):
+            body = await request.json()
+            return JSONResponse({
+                "client_id": "claude-mcp-client",
+                "client_secret": "not-used",
+                "redirect_uris": body.get("redirect_uris", []),
+                "grant_types": ["authorization_code"],
+                "response_types": ["code"],
+                "client_name": body.get("client_name", "Claude")
+            })
+
+        @app.get("/oauth/authorize")
+        async def oauth_authorize(request: Request):
+            params = dict(request.query_params)
+            redirect_uri = params.get("redirect_uri", "")
+            code = "ga4-mcp-bypass-code"
+            state = params.get("state", "")
+            return RedirectResponse(f"{redirect_uri}?code={code}&state={state}")
+
+        @app.post("/oauth/token")
+        async def oauth_token(request: Request):
+            return JSONResponse({
+                "access_token": "ga4-mcp-token",
+                "token_type": "Bearer",
+                "expires_in": 86400
+            })
 
         @app.get("/")
         async def root():
