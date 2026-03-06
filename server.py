@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from google.analytics.data_v1beta import BetaAnalyticsDataClient
+from google.analytics.data_v1beta import BetaAnalythhicsDataClient
 from google.analytics.data_v1beta.types import (
     DateRange, Dimension, Filter, FilterExpression,
     Metric, OrderBy, RunRealtimeReportRequest, RunReportRequest,
@@ -324,7 +324,6 @@ if __name__ == "__main__":
 
         app = FastAPI(redirect_slashes=False)
         mcp_app = mcp.streamable_http_app()
-        app.mount("/mcp/", mcp_app)
         app.mount("/mcp", mcp_app)
 
 
