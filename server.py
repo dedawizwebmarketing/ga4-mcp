@@ -324,42 +324,9 @@ if __name__ == "__main__":
 
         app = FastAPI()
         mcp_app = mcp.streamable_http_app()
+        app.mount("/mcp", mcp_app)
         app.mount("/mcp/", mcp_app)
 
-        @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
-        async def mcp_proxy(request: Request):
-            scope = dict(request.scope)
-            scope["path"] = "/mcp/"
-            scope["raw_path"] = b"/mcp/"
-            body = await request.body()
-            status_code = 200
-            resp_headers = []
-            body_chunks = []
-            started = False
-
-            async def receive():
-                return {"type": "http.request", "body": body, "more_body": False}
-
-            async def send(message):
-                nonlocal status_code, resp_headers, started
-                if message["type"] == "http.response.start" and not started:
-                    started = True
-                    status_code = message["status"]
-                    resp_headers = message.get("headers", [])
-                elif message["type"] == "http.response.body":
-                    body_chunks.append(message.get("body", b""))
-
-            await mcp_app(scope, receive, send)
-            safe_headers = {
-                k.decode(): v.decode()
-                for k, v in resp_headers
-                if k.decode().lower() not in ("content-length", "transfer-encoding")
-            }
-            return Response(
-                content=b"".join(body_chunks),
-                status_code=status_code,
-                headers=safe_headers,
-            )
 
         @app.get("/.well-known/oauth-protected-resource")
         @app.get("/.well-known/oauth-protected-resource/mcp")
