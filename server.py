@@ -322,10 +322,10 @@ if __name__ == "__main__":
         print(f"GA4 MCP Server su porta {PORT}", file=sys.stderr)
         print(f"Property: {list(PROPERTIES.keys())}", file=sys.stderr)
 
-        app = FastAPI()
+        app = FastAPI(redirect_slashes=False)
         mcp_app = mcp.streamable_http_app()
-        app.mount("/mcp", mcp_app)
         app.mount("/mcp/", mcp_app)
+        app.mount("/mcp", mcp_app)
 
 
         @app.get("/.well-known/oauth-protected-resource")
