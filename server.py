@@ -312,72 +312,45 @@ async def ga4_get_funnel(params: FunnelInput) -> str:
 
 if __name__ == "__main__":
     import uvicorn
-    from fastapi import FastAPI
+    from starlette.applications import Starlette
     from starlette.requests import Request
-    from starlette.responses import JSONResponse, RedirectResponse, Response
+    from starlette.responses import JSONResponse, RedirectResponse
+    from starlette.routing import Mount, Route
 
-    if TRANSPORT == "stdio":
-        mcp.run()
-    else:
-        print(f"GA4 MCP Server su porta {PORT}", file=sys.stderr)
-        print(f"Property: {list(PROPERTIES.keys())}", file=sys.stderr)
+    print(f"GA4 MCP Server su porta {PORT}", file=sys.stderr)
 
-        app = FastAPI(redirect_slashes=False)
-        mcp_app = mcp.streamable_http_app()
-        app.mount("/mcp", mcp_app)
+    mcp_asgi = mcp.streamable_http_app()
 
+    async def oauth_resource(request: Request):
+        return JSONResponse({"resource": f"{BASE_URL}/mcp", "authorization_servers": [], "bearer_methods_supported": [], "scopes_supported": []})
 
-        @app.get("/.well-known/oauth-protected-resource")
-        @app.get("/.well-known/oauth-protected-resource/mcp")
-        async def oauth_protected_resource(request: Request):
-            return JSONResponse({
-                "resource": f"{BASE_URL}/mcp",
-                "authorization_servers": [],
-                "bearer_methods_supported": [],
-                "scopes_supported": [],
-            })
+    async def oauth_server(request: Request):
+        return JSONResponse({"issuer": BASE_URL, "authorization_endpoint": f"{BASE_URL}/oauth/authorize", "token_endpoint": f"{BASE_URL}/oauth/token", "registration_endpoint": f"{BASE_URL}/register", "response_types_supported": ["code"], "grant_types_supported": ["authorization_code"], "code_challenge_methods_supported": ["S256"]})
 
-        @app.get("/.well-known/oauth-authorization-server")
-        async def oauth_authorization_server(request: Request):
-            return JSONResponse({
-                "issuer": BASE_URL,
-                "authorization_endpoint": f"{BASE_URL}/oauth/authorize",
-                "token_endpoint": f"{BASE_URL}/oauth/token",
-                "registration_endpoint": f"{BASE_URL}/register",
-                "response_types_supported": ["code"],
-                "grant_types_supported": ["authorization_code"],
-                "code_challenge_methods_supported": ["S256"],
-            })
+    async def register(request: Request):
+        body = await request.json()
+        return JSONResponse({"client_id": "claude-mcp-client", "client_secret": "not-used", "redirect_uris": body.get("redirect_uris", []), "grant_types": ["authorization_code"], "response_types": ["code"], "client_name": body.get("client_name", "Claude")})
 
-        @app.post("/register")
-        async def dynamic_client_registration(request: Request):
-            body_json = await request.json()
-            return JSONResponse({
-                "client_id": "claude-mcp-client",
-                "client_secret": "not-used",
-                "redirect_uris": body_json.get("redirect_uris", []),
-                "grant_types": ["authorization_code"],
-                "response_types": ["code"],
-                "client_name": body_json.get("client_name", "Claude"),
-            })
+    async def authorize(request: Request):
+        p = dict(request.query_params)
+        return RedirectResponse(f"{p.get('redirect_uri','')}?code=ga4-mcp-code&state={p.get('state','')}")
 
-        @app.get("/oauth/authorize")
-        async def oauth_authorize(request: Request):
-            p = dict(request.query_params)
-            redirect_uri = p.get("redirect_uri", "")
-            state = p.get("state", "")
-            return RedirectResponse(f"{redirect_uri}?code=ga4-mcp-code&state={state}")
+    async def token(request: Request):
+        return JSONResponse({"access_token": "ga4-mcp-token", "token_type": "Bearer", "expires_in": 86400})
 
-        @app.post("/oauth/token")
-        async def oauth_token(request: Request):
-            return JSONResponse({
-                "access_token": "ga4-mcp-token",
-                "token_type": "Bearer",
-                "expires_in": 86400,
-            })
+    async def root(request: Request):
+        return JSONResponse({"status": "ok", "server": "ga4_mcp"})
 
-        @app.get("/")
-        async def root():
-            return {"status": "ok", "server": "ga4_mcp"}
+    routes = [
+        Route("/.well-known/oauth-protected-resource", oauth_resource),
+        Route("/.well-known/oauth-protected-resource/mcp", oauth_resource),
+        Route("/.well-known/oauth-authorization-server", oauth_server),
+        Route("/register", register, methods=["POST"]),
+        Route("/oauth/authorize", authorize),
+        Route("/oauth/token", token, methods=["POST"]),
+        Route("/", root),
+        Mount("/mcp", app=mcp_asgi),
+    ]
 
-        uvicorn.run(app, host="0.0.0.0", port=PORT)
+    app = Starlette(routes=routes)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
