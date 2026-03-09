@@ -352,5 +352,5 @@ if __name__ == "__main__":
         Mount("/mcp", app=mcp_asgi),
     ]
 
-    app = Starlette(routes=routes)
+    app = Starlette(routes=routes, redirect_slashes=False)
     uvicorn.run(app, host="0.0.0.0", port=PORT)
